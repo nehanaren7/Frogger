@@ -19,7 +19,16 @@ const checkCollision = (rect1, rect2) => {
 };
 
 const Game = ({ user, onLogout }) => {
-    // ...
+    console.log("Game Component Mounted. User:", user);
+
+    const [gameState, setGameState] = useState(INITIAL_STATE.state);
+    const [score, setScore] = useState(INITIAL_STATE.score);
+    const [lives, setLives] = useState(INITIAL_STATE.lives);
+    const [fuel, setFuel] = useState(INITIAL_STATE.fuel);
+    const [isGhost, setIsGhost] = useState(false);
+    const [frogState, setFrogState] = useState(INITIAL_STATE.frog);
+    const [tick, setTick] = useState(0); // Game loop ticker
+
     const [highScore, setHighScore] = useState(user?.high_score || 0);
     const [leaderboard, setLeaderboard] = useState([]);
 
@@ -62,6 +71,11 @@ const Game = ({ user, onLogout }) => {
     const gameStateRef = useRef(INITIAL_STATE.state);
     const fuelRef = useRef(INITIAL_STATE.fuel);
     const isGhostRef = useRef(false);
+
+    // Missing refs restored
+    const difficultyMultiplierRef = useRef(1.0);
+    const crossingsRef = useRef(0);
+
 
     const spawnEntities = useCallback(() => {
         const vehs = [];

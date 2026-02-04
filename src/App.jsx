@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import Game from './components/Game';
 import AuthScreen from './components/AuthScreen';
+import ErrorBoundary from './components/ErrorBoundary';
+
 
 function App() {
   const [user, setUser] = useState(null);
@@ -11,7 +13,10 @@ function App() {
         {!user ? (
           <AuthScreen onLogin={setUser} />
         ) : (
-          <Game user={user} onLogout={() => setUser(null)} />
+          <ErrorBoundary>
+            <Game user={user} onLogout={() => setUser(null)} />
+          </ErrorBoundary>
+
         )}
       </div>
     </div>
