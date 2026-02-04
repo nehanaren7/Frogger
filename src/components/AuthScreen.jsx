@@ -65,15 +65,14 @@ const AuthScreen = ({ onLogin }) => {
                 <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-900/30 via-gray-950 to-gray-950 animate-spin-slow" />
             </div>
 
-            {/* Glass Card */}
-            <div className="relative z-10 w-full max-w-sm bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6">
+            {/* Glass Card (No Border) */}
+            <div className="relative z-10 w-full max-w-sm bg-gray-900/60 backdrop-blur-xl rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6">
 
                 {/* Title */}
                 <div className="text-center">
                     <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-purple-500 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)] tracking-wider">
                         FROGGER
                     </h1>
-                    <p className="text-gray-400 text-xs font-bold tracking-[0.3em] mt-2 opacity-70">ANTIGRAVITY EDITION</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="w-full flex flex-col gap-5">
