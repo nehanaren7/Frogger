@@ -12,10 +12,10 @@ const Obstacle = ({ x, y, type = 1, direction = 1 }) => {
         <div
             className="absolute transition-transform duration-100 ease-linear z-20"
             style={{
-                left: `${x * TILE_SIZE}%`,
-                top: `${y * ROW_HEIGHT}%`,
-                width: `${TILE_SIZE}%`,
-                height: `${ROW_HEIGHT}%`,
+                left: `${(x - 0.25) * TILE_SIZE}%`,
+                top: `${(y - 0.25) * ROW_HEIGHT}%`,
+                width: `${1.5 * TILE_SIZE}%`,
+                height: `${1.5 * ROW_HEIGHT}%`,
                 transform: `scaleX(${direction})`, // Flip if moving left
             }}
         >

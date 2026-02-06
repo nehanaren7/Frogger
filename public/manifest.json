@@ -1,0 +1,16 @@
+{
+    "name": "Frogger: Neon Jump",
+    "short_name": "Frogger",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#030712",
+    "theme_color": "#030712",
+    "description": "A neon-styled reimagining of the classic Frogger arcade game.",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "sizes": "1024x1024",
+            "type": "image/png"
+        }
+    ]
+}

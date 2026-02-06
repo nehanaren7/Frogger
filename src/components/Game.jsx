@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useGameLoop } from '../game/useGameLoop';
+import { useSound } from '../game/useSound';
 import { GRID_ROWS, GRID_COLS, INITIAL_STATE, ROW_HEIGHT, TILE_SIZE } from '../game/constants';
 import Frog from './Frog';
 import Obstacle from './Obstacle';
 import Log from './Log';
 import Controls from './Controls';
-import { Heart } from 'lucide-react';
+import { Heart, Volume2, VolumeX } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // Utils
@@ -24,8 +25,6 @@ const Game = ({ user, onLogout }) => {
     const [gameState, setGameState] = useState(INITIAL_STATE.state);
     const [score, setScore] = useState(INITIAL_STATE.score);
     const [lives, setLives] = useState(INITIAL_STATE.lives);
-    const [fuel, setFuel] = useState(INITIAL_STATE.fuel);
-    const [isGhost, setIsGhost] = useState(false);
     const [frogState, setFrogState] = useState(INITIAL_STATE.frog);
     const [tick, setTick] = useState(0); // Game loop ticker
 
@@ -39,7 +38,7 @@ const Game = ({ user, onLogout }) => {
                 .from('profiles')
                 .select('*')
                 .order('high_score', { ascending: false })
-                .limit(5)
+                .limit(100)
                 .then(({ data, error }) => {
                     if (data) setLeaderboard(data);
                     if (error) console.error("Leaderboard Fetch Error:", error);
@@ -69,8 +68,6 @@ const Game = ({ user, onLogout }) => {
     const obstaclesRef = useRef([]);
     const logsRef = useRef([]);
     const gameStateRef = useRef(INITIAL_STATE.state);
-    const fuelRef = useRef(INITIAL_STATE.fuel);
-    const isGhostRef = useRef(false);
 
     // Missing refs restored
     const difficultyMultiplierRef = useRef(1.0);
@@ -79,10 +76,18 @@ const Game = ({ user, onLogout }) => {
 
     const spawnEntities = useCallback(() => {
         const vehs = [];
-        vehs.push({ id: 'r4-1', x: 2, y: 4, type: 1, speed: -0.03, direction: -1 }); // Slower
-        vehs.push({ id: 'r4-2', x: 9, y: 4, type: 1, speed: -0.03, direction: -1 }); // More gap
-        vehs.push({ id: 'r5-1', x: 0, y: 5, type: 2, speed: 0.05, direction: 1 }); // Slower, Single car
-        vehs.push({ id: 'r6-1', x: 5, y: 6, type: 3, speed: -0.08, direction: -1 }); // Slower
+        // Upper Lanes: Right to Left (direction: -1)
+        vehs.push({ id: 'r5-1', x: 2, y: 5, type: 1, speed: -0.03, direction: -1 }); // Row 5 (R->L)
+        vehs.push({ id: 'r5-2', x: 9, y: 5, type: 1, speed: -0.03, direction: -1 });
+        vehs.push({ id: 'r6-1', x: 0, y: 6, type: 2, speed: -0.05, direction: -1 }); // Row 6 (R->L)
+
+        // Row 7: SAFE LANE (No vehicles)
+
+        // Lower Lanes: Left to Right (direction: 1)
+        vehs.push({ id: 'r8-1', x: 3, y: 8, type: 1, speed: 0.04, direction: 1 }); // Row 8 (L->R)
+        vehs.push({ id: 'r8-2', x: 8, y: 8, type: 1, speed: 0.04, direction: 1 });
+        vehs.push({ id: 'r9-1', x: 1, y: 9, type: 2, speed: 0.06, direction: 1 }); // Row 9 (L->R)
+        vehs.push({ id: 'r9-2', x: 7, y: 9, type: 2, speed: 0.06, direction: 1 });
         obstaclesRef.current = vehs;
 
         const lgs = [];
@@ -92,6 +97,8 @@ const Game = ({ user, onLogout }) => {
         lgs.push({ id: 'l2-2', x: 7, y: 2, width: 4.5, speed: -0.06 });
         lgs.push({ id: 'l3-1', x: 2, y: 3, width: 3.5, speed: 0.05 });
         lgs.push({ id: 'l3-2', x: 8, y: 3, width: 3.5, speed: 0.05 });
+        lgs.push({ id: 'l4-1', x: 1, y: 4, width: 4.0, speed: -0.05 }); // Row 4 (New)
+        lgs.push({ id: 'l4-2', x: 7, y: 4, width: 4.0, speed: -0.05 });
         logsRef.current = lgs;
     }, []);
 
@@ -105,11 +112,7 @@ const Game = ({ user, onLogout }) => {
     const softReset = () => {
         frogRef.current = { ...INITIAL_STATE.frog, direction: { x: 0, y: -1 } };
         setFrogState(frogRef.current);
-        setFuel(INITIAL_STATE.fuel);
-        fuelRef.current = INITIAL_STATE.fuel;
-        setIsGhost(false);
-        isGhostRef.current = false;
-        minYRef.current = 7;
+        minYRef.current = 10;
         // Do NOT reset score or difficulty
     };
 
@@ -124,7 +127,7 @@ const Game = ({ user, onLogout }) => {
         crossingsRef.current = 0;
     };
 
-    const minYRef = useRef(7);
+    const minYRef = useRef(10);
 
     const moveFrog = (dir) => {
         if (gameStateRef.current !== 'PLAYING') return;
@@ -147,7 +150,6 @@ const Game = ({ user, onLogout }) => {
         if (nextPos.y === 0) {
             // GOAL REACHED
             setScore(s => s + 1000);
-            fuelRef.current = Math.min(100, fuelRef.current + 50);
 
             // Progressive Difficulty
             crossingsRef.current += 1;
@@ -160,18 +162,7 @@ const Game = ({ user, onLogout }) => {
         }
     };
 
-    const handleFloatStart = () => {
-        if (gameStateRef.current !== 'PLAYING') return;
-        if (fuelRef.current > 0) {
-            setIsGhost(true);
-            isGhostRef.current = true;
-        }
-    };
 
-    const handleFloatEnd = () => {
-        setIsGhost(false);
-        isGhostRef.current = false;
-    };
 
     // Debug State
     const [debugInfo, setDebugInfo] = useState({ onLog: false, reason: '', x: 0, y: 0 });
@@ -196,15 +187,7 @@ const Game = ({ user, onLogout }) => {
             if (log.speed < 0 && log.x < -log.width) log.x = GRID_COLS;
         });
 
-        // 3. Float Mechanic
-        if (isGhostRef.current && fuelRef.current > 0) {
-            fuelRef.current = Math.max(0, fuelRef.current - 0.5);
-            if (fuelRef.current <= 0) {
-                isGhostRef.current = false;
-                setIsGhost(false);
-            }
-            setFuel(Math.floor(fuelRef.current));
-        }
+
 
         // 4. Collision Detection
         const frogCenterX = frogRef.current.x + 0.5;
@@ -212,7 +195,7 @@ const Game = ({ user, onLogout }) => {
         let deathReason = '';
 
         // Check Logs (Rows 1-3)
-        if (frogRef.current.y >= 1 && frogRef.current.y <= 3) {
+        if (frogRef.current.y >= 1 && frogRef.current.y <= 4) {
             logsRef.current.forEach(log => {
                 if (Math.abs(log.y - frogRef.current.y) < 0.2) {
                     if (frogCenterX > log.x && frogCenterX < log.x + log.width) {
@@ -222,7 +205,7 @@ const Game = ({ user, onLogout }) => {
                 }
             });
 
-            if (!onLog && !isGhostRef.current) {
+            if (!onLog) {
                 deathReason = `Water Drown`;
                 handleGameOver(deathReason);
             }
@@ -230,9 +213,9 @@ const Game = ({ user, onLogout }) => {
 
         // Vehicles
         const frogCarHitbox = { x: frogRef.current.x + 0.25, y: frogRef.current.y + 0.25, width: 0.5, height: 0.5 };
-        if (!isGhostRef.current) {
+        {
             obstaclesRef.current.forEach(obs => {
-                const obsRect = { x: obs.x + 0.1, y: obs.y + 0.1, width: 0.8, height: 0.8 };
+                const obsRect = { x: obs.x - 0.1, y: obs.y - 0.1, width: 1.2, height: 1.2 };
                 if (checkCollision(frogCarHitbox, obsRect)) {
                     deathReason = 'Car Crash';
                     handleGameOver(deathReason);
@@ -254,6 +237,9 @@ const Game = ({ user, onLogout }) => {
         });
     });
 
+    // Sound Hooks
+    const { playCrash, playGameOver, isMuted, toggleMute } = useSound();
+
     const handleGameOver = (reason = '') => {
         // Prevent multiple calls in same frame or rapid succession
         // Check if we already handled death recently? 
@@ -263,13 +249,14 @@ const Game = ({ user, onLogout }) => {
         // Simple distinct check: if frog is already at start, ignore.
         // Or better: use a cooldown?
         // Let's rely on position reset.
-        if (frogRef.current.y === 7 && frogRef.current.x === 5) return; // Already reset
+        if (frogRef.current.y === 10 && frogRef.current.x === 5) return; // Already reset
 
         console.log("DEATH:", reason);
 
         if (lives > 1) {
             setLives(l => l - 1);
             setDebugInfo(prev => ({ ...prev, reason: `Lost Life: ${reason}` }));
+            playCrash(); // Play crash sound
             softReset();
         } else {
             if (gameStateRef.current !== 'GAMEOVER') {
@@ -277,6 +264,7 @@ const Game = ({ user, onLogout }) => {
                 setDebugInfo(prev => ({ ...prev, reason: `GAME OVER: ${reason}` }));
                 gameStateRef.current = 'GAMEOVER';
                 setGameState('GAMEOVER');
+                playGameOver(); // Play game over sound
             }
         }
     };
@@ -293,39 +281,38 @@ const Game = ({ user, onLogout }) => {
                 case 'ArrowDown': case 's': case 'S': moveFrog({ x: 0, y: 1 }); break;
                 case 'ArrowLeft': case 'a': case 'A': moveFrog({ x: -1, y: 0 }); break;
                 case 'ArrowRight': case 'd': case 'D': moveFrog({ x: 1, y: 0 }); break;
-                case ' ': handleFloatStart(); break;
             }
-        };
-        const handleKeyUp = (e) => {
-            if (e.key === ' ') handleFloatEnd();
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
         };
     }, [lives]); // Add lives to dependency if needed, but refs are stable.
 
     return (
         <div className="relative w-full h-full bg-black overflow-hidden select-none font-sans">
-            {/* Fuel Bar */}
-            <div className="absolute top-0 left-0 w-full h-2 z-50 bg-gray-900 border-b border-gray-700">
-                <div
-                    className={`h-full bg-cyan-400 shadow-[0_0_10px_#0ff] ${isGhost ? 'animate-pulse' : ''}`}
-                    style={{ width: `${fuel}%`, transition: 'width 0.1s linear' }}
-                />
-            </div>
 
-            {/* Lives Display (New) */}
-            <div className="absolute top-4 right-4 z-50 flex gap-1 items-center">
-                {[...Array(3)].map((_, i) => (
-                    <Heart
-                        key={i}
-                        className={`w-6 h-6 ${i < lives ? 'text-red-500 fill-red-500' : 'text-gray-600'}`}
-                    />
-                ))}
+
+            {/* Lives and Controls */}
+            <div className="absolute top-4 right-4 z-50 flex gap-4 items-center">
+                <div className="flex gap-1 items-center">
+                    {[...Array(3)].map((_, i) => (
+                        <Heart
+                            key={i}
+                            className={`w-6 h-6 ${i < lives ? 'text-red-500 fill-red-500' : 'text-gray-600'}`}
+                        />
+                    ))}
+                </div>
+
+                {/* Mute Button */}
+                <button
+                    onClick={toggleMute}
+                    className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors border border-white/20"
+                    title={isMuted ? "Unmute" : "Mute"}
+                >
+                    {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5 text-green-400" />}
+                </button>
             </div>
 
             {/* Goal Area */}
@@ -336,21 +323,32 @@ const Game = ({ user, onLogout }) => {
             {/* Water Area */}
             <div className="absolute w-full z-0 opacity-80" style={{
                 top: `${ROW_HEIGHT * 1}%`,
-                height: `${ROW_HEIGHT * 3}%`,
+                height: `${ROW_HEIGHT * 4}%`,
                 backgroundImage: 'url(/assets/Water/1.png)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 filter: 'brightness(1.2) contrast(1.1)',
             }}></div>
 
-            {/* Road Area */}
-            <div className="absolute w-full z-0" style={{
-                top: `${ROW_HEIGHT * 4}%`,
-                height: `${ROW_HEIGHT * 3}%`,
-                backgroundImage: 'url(/assets/Road/1.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-            }}></div>
+            {/* Road Area - Tiled Blocks with Safe Middle Lane */}
+            {[5, 6, 7, 8, 9].map(row => (
+                <div key={row} className={`absolute w-full z-0 ${row === 7 ? 'bg-green-800 border-t-2 border-b-2 border-green-700' : ''}`} style={{
+                    top: `${ROW_HEIGHT * row}%`,
+                    height: `${ROW_HEIGHT}%`,
+                    backgroundImage: row === 7 ? 'none' : 'url(/assets/Road/1.png)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                }}>
+                    {row === 7 && (
+                        // Optional Grass Texture or Pattern for Safe Lane
+                        <div className="w-full h-full opacity-30" style={{
+                            backgroundImage: 'url(/assets/Water/1.png)', // Reusing water texture with green tint for grass effect? Or just simple color.
+                            filter: 'hue-rotate(90deg) brightness(0.5)',
+                            backgroundSize: 'cover'
+                        }}></div>
+                    )}
+                </div>
+            ))}
 
             {/* Start Area */}
             <div className="absolute bottom-0 left-0 w-full bg-purple-900 border-t-4 border-purple-800 z-0" style={{ height: `${ROW_HEIGHT}%` }}></div>
@@ -363,7 +361,6 @@ const Game = ({ user, onLogout }) => {
                 x={frogRef.current.x}
                 y={frogRef.current.y}
                 direction={frogRef.current.direction || { x: 0, y: -1 }}
-                isGhost={isGhost}
             />
 
             {/* HUD */}
@@ -383,9 +380,6 @@ const Game = ({ user, onLogout }) => {
             {gameState === 'PLAYING' && (
                 <Controls
                     onMove={moveFrog}
-                    onFloatStart={handleFloatStart}
-                    onFloatEnd={handleFloatEnd}
-                    fuel={fuel}
                 />
             )}
 
@@ -397,31 +391,60 @@ const Game = ({ user, onLogout }) => {
                     <h2 className="text-4xl font-black text-red-500 mb-2 drop-shadow-[0_0_10px_rgba(255,0,0,0.5)]">GAME OVER</h2>
                     <p className="text-white text-xl mb-6">Final Score: <span className="text-cyan-400 font-bold">{score}</span></p>
 
-                    {/* Leaderboard */}
-                    <div className="w-full max-w-xs bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
-                        <h3 className="text-yellow-400 font-bold text-lg mb-2 text-center border-b border-gray-700 pb-1">LEADERBOARD</h3>
-                        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                            {leaderboard.length > 0 ? leaderboard.map((u, i) => (
-                                <div key={u.reg_no} className={`flex justify-between text-sm ${user && u.reg_no === user.reg_no ? 'text-cyan-400 font-bold' : 'text-gray-300'}`}>
-                                    <span>#{i + 1} {u.name}</span>
-                                    <span>{u.high_score}</span>
-                                </div>
-                            )) : (
-                                <p className="text-gray-500 text-xs text-center py-2">Loading Leaderboard...</p>
-                            )}
+                    {/* Leaderboard - Full Page */}
+                    <div className="w-full max-w-4xl bg-gray-800/90 rounded-xl p-6 mb-6 border-2 border-gray-700 flex flex-col h-[60vh]">
+                        <h3 className="text-yellow-400 font-bold text-3xl mb-4 text-center border-b-2 border-gray-600 pb-2 tracking-widest uppercase text-shadow">Global Leaderboard</h3>
+
+                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 bg-gray-900 z-10 text-cyan-400 uppercase text-sm font-bold tracking-wider">
+                                    <tr>
+                                        <th className="p-3 border-b border-gray-700">Rank</th>
+                                        <th className="p-3 border-b border-gray-700">Name</th>
+                                        <th className="p-3 border-b border-gray-700 text-right">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {leaderboard.length > 0 ? leaderboard.map((u, i) => (
+                                        <tr
+                                            key={u.reg_no}
+                                            className={`
+                                                border-b border-gray-700/50 hover:bg-white/5 transition-colors
+                                                ${user && u.reg_no === user.reg_no ? 'bg-cyan-900/30 text-cyan-300 font-bold' : 'text-gray-300'}
+                                                ${i < 3 ? 'text-yellow-200' : ''}
+                                            `}
+                                        >
+                                            <td className="p-3 flex items-center gap-2">
+                                                {i === 0 && <span className="text-xl">🥇</span>}
+                                                {i === 1 && <span className="text-xl">🥈</span>}
+                                                {i === 2 && <span className="text-xl">🥉</span>}
+                                                <span className="opacity-70">#{i + 1}</span>
+                                            </td>
+                                            <td className="p-3 font-medium">{u.name}</td>
+                                            <td className="p-3 text-right font-mono text-lg">{u.high_score.toLocaleString()}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="3" className="p-8 text-center text-gray-500 animate-pulse">
+                                                Loading global records...
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <div className="flex gap-4 w-full max-w-md justify-center">
                         <button
                             onClick={resetGame}
-                            className="w-full py-3 bg-white text-black font-bold text-lg rounded hover:bg-gray-200 active:scale-95 transition-all"
+                            className="flex-1 py-4 bg-white text-black font-black text-xl rounded-lg hover:bg-gray-200 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]"
                         >
                             TRY AGAIN
                         </button>
                         <button
                             onClick={onLogout}
-                            className="w-full py-3 bg-red-900/50 text-red-400 border border-red-800 font-bold text-lg rounded hover:bg-red-900 active:scale-95 transition-all"
+                            className="flex-1 py-4 bg-red-900/80 text-red-200 border-2 border-red-800 font-bold text-xl rounded-lg hover:bg-red-800 hover:text-white active:scale-95 transition-all"
                         >
                             SIGN OUT
                         </button>

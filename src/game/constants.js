@@ -1,5 +1,5 @@
 export const GRID_COLS = 11;
-export const GRID_ROWS = 8; // Goal(1) + Water(3) + Road(3) + Start(1)
+export const GRID_ROWS = 11; // Goal(1) + Water(4) + Road(5) + Start(1)
 
 export const TILE_SIZE = 100 / GRID_COLS; // percent width
 export const ROW_HEIGHT = 100 / GRID_ROWS; // percent height
@@ -12,10 +12,9 @@ export const DIRECTIONS = {
 };
 
 export const INITIAL_STATE = {
-    frog: { x: 5, y: 7 }, // Start at bottom center
+    frog: { x: 5, y: 10 }, // Start at bottom center
     score: 0,
     lives: 3,
-    fuel: 100,
     level: 1,
     state: 'PLAYING', // PLAYING, GAMEOVER, WON
 };
